@@ -49,6 +49,13 @@ from ...utils import (
 from ...utils.import_utils import is_torch_fx_available
 from .configuration_gemma import GemmaConfig
 
+DEBUG = False
+
+
+def debug_print(*args):
+    if DEBUG:
+        print(*args)
+
 
 if is_flash_attn_2_available():
     from flash_attn import flash_attn_func, flash_attn_varlen_func
@@ -690,110 +697,142 @@ class GemmaSdpaAttention(GemmaAttention):
 
 
 class GemmaInfiniAttention(GemmaAttention):
-    def __init__(self, config: GemmaConfig, layer_idx: Optional[int] = None):
+    def __init__(
+        self,
+        config: GemmaConfig,
+        layer_idx: Optional[int] = None,
+    ):
         super().__init__(config, layer_idx)
-        self.memory = None
-        self.norm_term = None
+
         self.gate = nn.Parameter(torch.tensor(0.0))
+        self.segment_size = config.segment_size
 
     def forward(
         self,
-        hidden_states,
-        attention_mask=None,
-        position_ids=None,
-        past_key_value=None,
-        output_attentions=False,
-        use_cache=False,
-        cache_position=None,
-    ):
-        # Compute query, key, value states from hidden_states
-        query_states = self.q_proj(hidden_states)
-        key_states = self.k_proj(hidden_states)
-        value_states = self.v_proj(hidden_states)
+        hidden_states: torch.Tensor,
+        attention_mask: Optional[torch.Tensor] = None,
+        position_ids: Optional[torch.LongTensor] = None,
+        past_key_value: Optional[Cache] = None,
+        output_attentions: bool = False,
+        use_cache: bool = False,
+        cache_position: Optional[torch.LongTensor] = None,
+        **kwargs,
+    ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
+        self.memory = None
+        self.norm_term = None
 
-        bsz, q_len, _ = hidden_states.size()
-        query_states = query_states.view(
-            bsz, q_len, self.num_heads, self.head_dim
-        ).transpose(1, 2)
-        key_states = key_states.view(
-            bsz, q_len, self.num_key_value_heads, self.head_dim
-        ).transpose(1, 2)
-        value_states = value_states.view(
-            bsz, q_len, self.num_key_value_heads, self.head_dim
-        ).transpose(1, 2)
-
-        # Apply RoPE and caching
-        cos, sin = self.rotary_emb(value_states, position_ids, seq_len=None)
-        query_states, key_states = apply_rotary_pos_emb(
-            query_states, key_states, cos, sin, None
+        total_len = hidden_states.size(1)
+        debug_print("total_len", total_len)
+        segments = torch.tensor_split(
+            hidden_states,
+            list(range(self.segment_size, total_len, self.segment_size)),
+            dim=1,
         )
+        final_outputs = []
 
-        if past_key_value is not None:
-            cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
-            key_states, value_states = past_key_value.update(
-                key_states, value_states, self.layer_idx, cache_kwargs
+        debug_print("len(segments):", len(segments))
+
+        for segment in segments:
+            # Process each segment
+            query_states = self.q_proj(segment)
+            key_states = self.k_proj(segment)
+            value_states = self.v_proj(segment)
+
+            # Assuming the presence of batch size and dimension handling as before
+            bsz, q_len, _ = segment.size()  # q_len == self.segment_size
+            query_states = query_states.view(
+                bsz, q_len, self.num_heads, self.head_dim
+            ).transpose(1, 2)
+            key_states = key_states.view(
+                bsz, q_len, self.num_key_value_heads, self.head_dim
+            ).transpose(1, 2)
+            value_states = value_states.view(
+                bsz, q_len, self.num_key_value_heads, self.head_dim
+            ).transpose(1, 2)
+
+            # Rotary embeddings, set seq_len to q_len as we are processing a segment
+            cos, sin = self.rotary_emb(value_states, position_ids, seq_len=q_len)
+            query_states, key_states = apply_rotary_pos_emb(
+                query_states,
+                key_states,
+                cos[:, : self.segment_size],
+                sin[:, : self.segment_size],
+                None,
             )
 
-        # Compute local dot-product attention
-        attn_weights = torch.matmul(query_states, key_states.transpose(2, 3))
-        attn_weights /= math.sqrt(self.head_dim)
-        attn_weights = nn.functional.softmax(attn_weights, dim=-1)
-        attn_output = torch.matmul(attn_weights, value_states)
+            # Basic cache
+            past_key_value = getattr(self, "past_key_value", past_key_value)
+            if past_key_value is not None:
+                # sin and cos are specific to RoPE models; cache_position needed for the static cache
+                cache_kwargs = {
+                    "sin": sin,
+                    "cos": cos,
+                    "cache_position": cache_position,
+                }
+                key_states, value_states = past_key_value.update(
+                    key_states, value_states, self.layer_idx, cache_kwargs
+                )
 
-        # Retrieve from compressive memory
-        if self.memory is None:
-            self.memory = torch.zeros(
-                key_states.shape[-1],
-                value_states.shape[-1],
-                device=key_states.device,
-                dtype=key_states.dtype,
+            # GQA
+            # Memory retrieval and attention calculation per segment
+            memory_output = self._retrieve_from_memory(query_states)
+            debug_print("Memory Output Shape:", memory_output.shape)
+            # Update memory with current segment's key and value states
+            self._update_memory(key_states, value_states)
+            key_states = repeat_kv(key_states, self.num_key_value_groups)
+            value_states = repeat_kv(value_states, self.num_key_value_groups)
+
+            causal_mask = attention_mask
+            if attention_mask is not None:
+                causal_mask = causal_mask[
+                    :, :, : self.segment_size, : key_states.shape[-2]
+                ]  # FIXME: This is wrong, should be [:, :, :, :self.segment_size]
+
+            debug_print("causal_mask.shape", causal_mask.shape)
+
+            attn_output = torch.nn.functional.scaled_dot_product_attention(
+                query_states,
+                key_states,
+                value_states,
+                attn_mask=causal_mask,
+                dropout_p=self.attention_dropout if self.training else 0.0,
             )
-            self.norm_term = torch.zeros(
-                key_states.shape[-1], device=key_states.device, dtype=torch.float32
-            )
-        memory_output = self._retrieve_from_memory(query_states)
 
-        # Update compressive memory
-        self._update_memory(key_states, value_states)
+            combined_output = self.gate * memory_output + (1 - self.gate) * attn_output
 
-        # Aggregate local and global context
-        gate = torch.sigmoid(self.gate)
-        attn_output = gate * memory_output + (1 - gate) * attn_output
+            # Prepare output for this segment
+            combined_output = combined_output.transpose(1, 2).contiguous()
+            combined_output = combined_output.view(bsz, q_len, self.hidden_size)
+            final_outputs.append(self.o_proj(combined_output))
 
-        attn_output = attn_output.transpose(1, 2).contiguous()
-        attn_output = attn_output.view(bsz, q_len, self.hidden_size)
-        attn_output = self.o_proj(attn_output)
-
-        return attn_output, None, None
+        # Concatenate outputs from all segments
+        final_output = torch.cat(final_outputs, dim=1)
+        return final_output, None, None
 
     def _retrieve_from_memory(self, query_states):
-        # Retrieve context from compressive memory using linear attention
-        bsz, n_heads, q_len, d = query_states.shape
-        flat_q = query_states.reshape(bsz * n_heads, q_len, d)
-
-        if self.memory.dim() == 2:
-            self.memory = self.memory.unsqueeze(0)
-        if self.norm_term.dim() == 1:
-            self.norm_term = self.norm_term.unsqueeze(0)
-
-        memory_output = torch.bmm(flat_q, self.memory.expand(bsz * n_heads, -1, -1))
-        memory_output = memory_output.view(bsz, n_heads, q_len, -1)
-
-        # Expand norm_term to match the shape of memory_output
-        norm_term_expanded = self.norm_term.view(1, 1, 1, -1).expand(
-            bsz, n_heads, q_len, -1
-        )
-        memory_output = memory_output / norm_term_expanded
-
+        # Retrieve context from compressive memory using linear attention (Eq. 3)
+        if self.memory is None:
+            debug_print("[Retrieve] No memory found")
+            return torch.zeros_like(query_states)
+        debug_print("[Retrieve] query_states.shape", query_states.shape)
+        debug_print("[Retrieve] self.memory.shape", self.memory.shape)
+        memory_output = torch.matmul(query_states, self.memory) / self.norm_term
         return memory_output
 
     def _update_memory(self, key_states, value_states):
-        # Update compressive memory with new key-value states
-        bsz, n_heads, q_len, d = key_states.shape
-        flat_k = key_states.reshape(bsz * n_heads, q_len, d)
-        flat_v = value_states.reshape(bsz * n_heads, q_len, -1)
-        self.memory = self.memory + torch.bmm(flat_k.transpose(1, 2), flat_v)
-        self.norm_term = self.norm_term + flat_k.sum(dim=1)
+        # Update compressive memory with new key-value states (Eq. 4)
+        if self.memory is not None:
+            self.memory = self.memory + torch.matmul(
+                key_states.transpose(-2, -1), value_states
+            )
+            debug_print("[Update] self.memory.shape", self.memory.shape)
+        else:
+            self.memory = torch.matmul(key_states.transpose(-2, -1), value_states)
+            debug_print("[Update] self.memory.shape", self.memory.shape)
+        if self.norm_term is not None:
+            self.norm_term = self.norm_term + key_states.sum(dim=-2)
+        else:
+            self.norm_term = key_states.sum(dim=-2)
 
 
 GEMMA_ATTENTION_CLASSES = {
