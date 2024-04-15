@@ -753,11 +753,12 @@ class GemmaInfiniAttention(GemmaAttention):
 
             # Rotary embeddings, set seq_len to q_len as we are processing a segment
             cos, sin = self.rotary_emb(value_states, position_ids, seq_len=q_len)
+
             query_states, key_states = apply_rotary_pos_emb(
                 query_states,
                 key_states,
-                cos[:, : self.segment_size],
-                sin[:, : self.segment_size],
+                cos[:, : min(self.segment_size, q_len), :],
+                sin[:, : min(self.segment_size, q_len), :],
                 None,
             )
 
@@ -786,10 +787,11 @@ class GemmaInfiniAttention(GemmaAttention):
             causal_mask = attention_mask
             if attention_mask is not None:
                 causal_mask = causal_mask[
-                    :, :, : self.segment_size, : key_states.shape[-2]
+                    :, :, : min(self.segment_size, q_len), : key_states.shape[-2]
                 ]  # FIXME: This is wrong, should be [:, :, :, :self.segment_size]
 
             debug_print("causal_mask.shape", causal_mask.shape)
+            debug_print("query_states.shape", query_states.shape)
 
             attn_output = torch.nn.functional.scaled_dot_product_attention(
                 query_states,
