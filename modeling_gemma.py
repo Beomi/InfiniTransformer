@@ -15,6 +15,7 @@
 # limitations under the License.
 """ PyTorch Gemma model."""
 
+import os
 import math
 import warnings
 from typing import List, Optional, Tuple, Union
@@ -49,7 +50,7 @@ from ...utils import (
 from ...utils.import_utils import is_torch_fx_available
 from .configuration_gemma import GemmaConfig
 
-DEBUG = False
+DEBUG = os.environ.get("DEBUG", False)
 
 
 def debug_print(*args):

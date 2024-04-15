@@ -42,7 +42,9 @@ print(encoded)
 outputs = model(**encoded)  # position_ids=position_ids)
 print(outputs.loss)
 
-# outputs.loss.backward()  # Test the backward pass
+outputs.loss.backward()  # Test the backward pass
+
+print("backprop done")
 
 
 # pipe = pipeline("text-generation", model=model, tokenizer=tokenizer)
