@@ -819,11 +819,13 @@ class GemmaInfiniAttention(GemmaAttention):
             return torch.zeros_like(query_states)
         debug_print("[Retrieve] query_states.shape", query_states.shape)
         debug_print("[Retrieve] self.memory.shape", self.memory.shape)
+        query_states = F.elu(query_states) + 1  # ELU activation
         memory_output = torch.matmul(query_states, self.memory) / self.norm_term
         return memory_output
 
     def _update_memory(self, key_states, value_states):
         # Update compressive memory with new key-value states (Eq. 4)
+        key_states = F.elu(key_states) + 1  # ELU activation
         if self.memory is not None:
             self.memory = self.memory + torch.matmul(
                 key_states.transpose(-2, -1), value_states
