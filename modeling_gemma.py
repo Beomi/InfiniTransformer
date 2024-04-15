@@ -801,7 +801,7 @@ class GemmaInfiniAttention(GemmaAttention):
                 dropout_p=self.attention_dropout if self.training else 0.0,
             )
 
-            combined_output = self.gate * memory_output + (1 - self.gate) * attn_output
+            combined_output = F.sigmoid(self.gate) * memory_output + (1 - F.sigmoid(self.gate)) * attn_output
 
             # Prepare output for this segment
             combined_output = combined_output.transpose(1, 2).contiguous()
