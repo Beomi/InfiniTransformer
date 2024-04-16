@@ -34,7 +34,8 @@ config = GemmaConfig.from_pretrained(
     "google/gemma-2b",
     attn_implementation="eager",
 )
-config.memory_size = config.max_position_embeddings
+config.max_position_embeddings = 128
+config.memory_size = config.hidden_size
 config.use_cache = False
 config.segment_size = config.max_position_embeddings
 
@@ -74,7 +75,7 @@ tokenized_datasets = wiki.map(
 )
 
 
-block_size = config.segment_size * 4  # to test segment size
+block_size = config.segment_size * 16  # will be 32768
 print("block_size:", block_size)
 
 
