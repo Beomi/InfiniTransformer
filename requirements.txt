@@ -1,2 +1,4 @@
 torch==2.2.2
+datasets
+accelerate
 

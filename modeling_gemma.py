@@ -801,7 +801,10 @@ class GemmaInfiniAttention(GemmaAttention):
                 dropout_p=self.attention_dropout if self.training else 0.0,
             )
 
-            combined_output = F.sigmoid(self.gate) * memory_output + (1 - F.sigmoid(self.gate)) * attn_output
+            combined_output = (
+                F.sigmoid(self.gate) * memory_output
+                + (1 - F.sigmoid(self.gate)) * attn_output
+            )
 
             # Prepare output for this segment
             combined_output = combined_output.transpose(1, 2).contiguous()
@@ -813,31 +816,48 @@ class GemmaInfiniAttention(GemmaAttention):
         return final_output, None, None
 
     def _retrieve_from_memory(self, query_states):
-        # Retrieve context from compressive memory using linear attention (Eq. 3)
-        if self.memory is None:
-            debug_print("[Retrieve] No memory found")
+        # Check if memory is initialized
+        if self.memory is None or self.norm_term is None:
+            debug_print("[Retrieve] No memory or norm term found")
             return torch.zeros_like(query_states)
+
         debug_print("[Retrieve] query_states.shape", query_states.shape)
         debug_print("[Retrieve] self.memory.shape", self.memory.shape)
-        query_states = F.elu(query_states) + 1  # ELU activation
-        memory_output = torch.matmul(query_states, self.memory) / self.norm_term
+
+        # Apply ELU activation
+        query_states = F.elu(query_states) + 1  # ELU activation + 1 for stability
+        memory_output = torch.matmul(query_states, self.memory)
+
+        debug_print("[Retrieve] memory_output.shape", memory_output.shape)
+        debug_print("[Retrieve] self.norm_term.shape", self.norm_term.shape)
+
+        # Ensure norm_term is broadcastable to memory_output shape: [batch_size, num_heads, seq_len, head_dim]
+        norm_term_broadcastable = self.norm_term.unsqueeze(1).expand(
+            -1, query_states.size(1), query_states.size(2), -1
+        )
+        debug_print(
+            "[Broadcast] norm_term_broadcastable.shape", norm_term_broadcastable.shape
+        )
+
+        # Perform division
+        memory_output = memory_output / norm_term_broadcastable
         return memory_output
 
     def _update_memory(self, key_states, value_states):
-        # Update compressive memory with new key-value states (Eq. 4)
-        key_states = F.elu(key_states) + 1  # ELU activation
+        # Ensure that norm_term is initialized
+        key_states = F.elu(key_states) + 1  # Apply ELU activation
         if self.memory is not None:
-            self.memory = self.memory + torch.matmul(
-                key_states.transpose(-2, -1), value_states
-            )
-            debug_print("[Update] self.memory.shape", self.memory.shape)
+            self.memory += torch.matmul(key_states.transpose(-2, -1), value_states)
         else:
             self.memory = torch.matmul(key_states.transpose(-2, -1), value_states)
-            debug_print("[Update] self.memory.shape", self.memory.shape)
+
         if self.norm_term is not None:
-            self.norm_term = self.norm_term + key_states.sum(dim=-2)
+            self.norm_term += key_states.sum(dim=2)  # Update normalization term
         else:
-            self.norm_term = key_states.sum(dim=-2)
+            self.norm_term = key_states.sum(dim=2)  # Initialize normalization term
+
+        debug_print("[Update] self.memory.shape", self.memory.shape)
+        debug_print("[Update] self.norm_term.shape", self.norm_term.shape)
 
 
 GEMMA_ATTENTION_CLASSES = {

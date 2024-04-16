@@ -33,5 +33,5 @@ ln -s $(pwd)/modeling_gemma.py ./src/transformers/src/transformers/models/gemma/
 ### 4. Run the example
 
 ```bash
-python test.py
+python test_basic.py
 ```

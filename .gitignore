@@ -1,3 +1,5 @@
+models/
+wandb/
 *.backup.*
 src/*
 # Created by https://www.toptal.com/developers/gitignore/api/python,macos,jupyternotebooks,visualstudiocode
