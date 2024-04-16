@@ -1,6 +1,18 @@
+import os
+
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # TODO: set the GPU device
+
 import torch
 from torch.nn import functional as F
 from transformers import GemmaConfig, GemmaForCausalLM, AutoTokenizer, pipeline
+
+print("Torch Version:", torch.__version__)
+print("CUDA:", torch.cuda.is_available())
+
+if torch.cuda.is_available():
+    device = "cuda:0"  # set GPU device using CUDA_VISIBLE_DEVICES
+else:
+    device = "cpu"
 
 config = GemmaConfig.from_pretrained(
     "google/gemma-2b",
@@ -27,6 +39,7 @@ for param in model.named_parameters():
         else:
             print(f"Skipping {name} due to size mismatch.")
 print(model)
+model.to(device)
 
 # Generate some dummy input data
 tokenizer = AutoTokenizer.from_pretrained("google/gemma-2b")
@@ -40,7 +53,7 @@ encoded["labels"] = encoded["input_ids"].clone()
 
 print(encoded)
 # Test the forward pass
-outputs = model(**encoded)  # position_ids=position_ids)
+outputs = model(**encoded.to(device))  # position_ids=position_ids)
 print(outputs.loss)
 
 outputs.loss.backward()  # Test the backward pass
