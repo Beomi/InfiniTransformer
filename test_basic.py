@@ -19,7 +19,7 @@ config = GemmaConfig.from_pretrained(
     attn_implementation="eager",
 )
 config.memory_size = 2048
-config.use_cache = False
+config.use_cache = True
 config.segment_size = 16
 
 print(config)
@@ -43,7 +43,7 @@ model.to(device)
 
 # Generate some dummy input data
 tokenizer = AutoTokenizer.from_pretrained("google/gemma-2b")
-text = """This work introduces an efficient method to scale Transformer-based Large Language Models (LLMs) to infinitely long inputs with bounded memory and computation. A key component in our proposed approach is a new attention technique dubbed Infini-attention. The Infini-attention incorporates a compressive memory into the vanilla attention mechanism and builds in both masked local attention and long-term linear attention mechanisms in a single Transformer block. We demonstrate the effectiveness of our approach on long-context language modeling benchmarks, 1M sequence length passkey context block retrieval and 500K length book summarization tasks with 1B and 8B LLMs. Our approach introduces minimal bounded memory parameters and enables fast streaming inference for"""
+text = """This work introduces an efficient method to scale Transformer-based"""
 encoded = tokenizer(
     text,
     return_tensors="pt",
@@ -59,15 +59,6 @@ print(outputs.loss)
 outputs.loss.backward()  # Test the backward pass
 
 print("backprop done")
-
-
-# generated = model.generate(
-#     **encoded,
-#     max_new_tokens=10,
-#     do_sample=True,
-#     num_return_sequences=1,
-# )
-# print(tokenizer.decode(generated[0], skip_special_tokens=False))
 
 
 # Step 1: Get effective batch size and sequence length
@@ -106,4 +97,14 @@ for _ in range(10):  # 10 is the number of new tokens to generate
 
 # Step 5: Return generated sequence
 generated_sequence = tokenizer.decode(input_ids[0], skip_special_tokens=False)
-print(generated_sequence)
+print("generated_sequence:", generated_sequence)
+
+# Test .generate() method
+generated = model.generate(
+    **encoded,
+    max_new_tokens=32,
+    do_sample=True,
+    num_return_sequences=1,
+)
+print("Generated:")
+print(tokenizer.decode(generated[0], skip_special_tokens=False))

@@ -705,7 +705,9 @@ class GemmaInfiniAttention(GemmaAttention):
     ):
         super().__init__(config, layer_idx)
 
-        self.gate = nn.Parameter(torch.tensor(0.0))
+        # Each head has its own gate
+        # init with -100 to make it close to 0 effect at the beginning
+        self.gate = nn.Parameter(torch.full((1, self.num_heads, 1, 1), -100.0))
         self.segment_size = config.segment_size
 
     def forward(
@@ -847,12 +849,16 @@ class GemmaInfiniAttention(GemmaAttention):
         # Ensure that norm_term is initialized
         key_states = F.elu(key_states) + 1  # Apply ELU activation
         if self.memory is not None:
-            self.memory = self.memory + torch.matmul(key_states.transpose(-2, -1), value_states)
+            self.memory = self.memory + torch.matmul(
+                key_states.transpose(-2, -1), value_states
+            )
         else:
             self.memory = torch.matmul(key_states.transpose(-2, -1), value_states)
 
         if self.norm_term is not None:
-            self.norm_term = self.norm_term + key_states.sum(dim=2)  # Update normalization term
+            self.norm_term = self.norm_term + key_states.sum(
+                dim=2
+            )  # Update normalization term
         else:
             self.norm_term = key_states.sum(dim=2)  # Initialize normalization term
 
