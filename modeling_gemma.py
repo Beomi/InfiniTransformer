@@ -836,8 +836,10 @@ class GemmaInfiniAttention(GemmaAttention):
         debug_print("[Retrieve] self.norm_term.shape", self.norm_term.shape)
 
         # Broadcast norm_term to the shape of query_states, then sum across head_dim for normalization
-        norm_term_broadcastable = self.norm_term.expand_as(query_states).sum(
-            dim=3, keepdim=True
+        norm_term_broadcastable = torch.matmul(
+            query_states,
+            self.norm_term
+            .transpose(-2, -1),
         )
         debug_print(
             "[Broadcast] norm_term_broadcastable.shape", norm_term_broadcastable.shape
