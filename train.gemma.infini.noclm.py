@@ -727,16 +727,18 @@ def main():
                     ),
                     dim=1,
                 )
-            M_Z = None
+            memory, norm_term = None, None
             avg_segment_loss = 0
             for i in range(len(input_ids)):
                 outputs = model(
                     input_ids=input_ids[i],
                     attention_mask=attention_mask[i],
                     labels=labels[i],
-                    M_Z=M_Z,
+                    memory=memory,
+                    norm_term=norm_term,
                 )
-                M_Z = outputs.M_Z
+                memory = outputs.memory
+                norm_term = outputs.norm_term
                 loss = outputs.loss
                 accelerator.backward(loss)
                 total_loss += loss.detach().float()
@@ -793,16 +795,19 @@ def main():
                     ),
                     dim=1,
                 )
-            M_Z = None
+
+            memory, norm_term = None, None
             for i in range(len(input_ids)):
                 with torch.no_grad():
                     outputs = model(
                         input_ids=input_ids[i],
                         attention_mask=attention_mask[i],
                         labels=labels[i],
-                        M_Z=M_Z,
+                        memory=memory,
+                        norm_term=norm_term,
                     )
-                    M_Z = outputs.M_Z
+                    memory = outputs.memory
+                    norm_term = outputs.norm_term
 
             loss = outputs.loss
             losses.append(
