@@ -33,7 +33,9 @@ else:
 if os.path.exists('./models/gemma-2b'):
     model = GemmaForCausalLM.from_pretrained('./models/gemma-2b', 
                                              torch_dtype='auto', 
-                                             device_map='auto')
+                                             device_map='auto',
+                                             attn_implementation="eager",
+                                            )
     config = model.config
     print(config)
     print(model)
@@ -68,9 +70,7 @@ else:
     # model = model.to(torch.bfloat16)
     model = model.to(device)
 
-wiki = load_dataset("wikipedia", "20220301.en", split='train[:20000]')
-# wiki = load_dataset("wikitext", "wikitext-2-raw-v1")
-# wiki = load_dataset('daje/ko_wiki')
+wiki = load_dataset("JeanKaddour/minipile" )
 
 tokenizer = AutoTokenizer.from_pretrained("google/gemma-2b")
 
@@ -87,7 +87,7 @@ tokenized_datasets = wiki.map(
 )
 
 
-block_size = config.segment_size * 4  # will be 32768
+block_size = config.segment_size * 8  # will be 8K
 print("block_size:", block_size)
 
 
@@ -119,10 +119,10 @@ training_args = TrainingArguments(
     output_dir="./models/gemma-2b-wikitext",
     overwrite_output_dir=True,
     num_train_epochs=1,
-    per_device_train_batch_size=1,  # to test batch dim
+    per_device_train_batch_size=2,  # to test batch dim
     save_total_limit=1,
     report_to="wandb",  # "none" if you don't want to report to wandb
-    run_name="gemma-2b-wikitext",
+    run_name="gemma-2b-bookcorpus",
     optim="adafactor",
     learning_rate=1e-4,
     bf16=True,
