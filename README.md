@@ -42,6 +42,8 @@ python test_basic.py
 python test_train.small.py
 ```
 
+<img width="808" alt="image" src="https://github.com/Beomi/InfiniTransformer/assets/11323660/c3cb7b1e-531c-4652-a5de-fcf36b1c03bc">
+
 Example code used wikitext-2-raw-v1 from https://huggingface.co/datasets/wikitext
 
 Here's the test wandb log here -> https://api.wandb.ai/links/beomi2/1rsqrkfn
