@@ -30,8 +30,18 @@ rm ./src/transformers/src/transformers/models/gemma/modeling_gemma.py
 ln -s $(pwd)/modeling_gemma.py ./src/transformers/src/transformers/models/gemma/modeling_gemma.py
 ```
 
-### 4. Run the example
+### 4. Run the example(Inference, simple forward/backward test)
 
 ```bash
 python test_basic.py
 ```
+
+### 5. Train with your data
+
+```bash
+python test_train.small.py
+```
+
+Example code used wikitext-2-raw-v1 from https://huggingface.co/datasets/wikitext
+
+Here's the wandb log for 

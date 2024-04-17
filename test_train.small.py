@@ -1,6 +1,6 @@
 import os
 
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"  # TODO: set the GPU device
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"  # TODO: set the GPU device
 os.environ["WANDB_PROJECT"] = "InfiniTransformer"
 os.environ["WANDB_MODE"] = "offline"
 
@@ -44,7 +44,9 @@ print(config)
 # Create the Gemma model with Infini-attention
 model = GemmaForCausalLM(config)
 # model = model.from_pretrained("google/gemma-2b")
-pretrained_model = GemmaForCausalLM.from_pretrained("google/gemma-2b")
+pretrained_model = GemmaForCausalLM.from_pretrained(
+    "google/gemma-2b", torch_dtype="auto"
+)
 # Step 4: Transfer weights
 # Note: This is a simplified example; you need to ensure that each parameter's dimensions match.
 for param in model.named_parameters():
@@ -56,11 +58,12 @@ for param in model.named_parameters():
         else:
             print(f"Skipping {name} due to size mismatch.")
 print(model)
-model = model.to(torch.bfloat16)
+# model = model.to(torch.bfloat16)
 model = model.to(device)
 
 
 wiki = load_dataset("wikitext", "wikitext-2-raw-v1")
+# wiki = load_dataset('daje/ko_wiki')
 
 tokenizer = AutoTokenizer.from_pretrained("google/gemma-2b")
 
@@ -107,14 +110,18 @@ training_args = TrainingArguments(
     output_dir="./models/gemma-2b-wikitext",
     overwrite_output_dir=True,
     num_train_epochs=1,
-    per_device_train_batch_size=2,  # to test batch dim
-    save_steps=10_000,
+    per_device_train_batch_size=4,  # to test batch dim
     save_total_limit=1,
     report_to="wandb",  # "none" if you don't want to report to wandb
     run_name="gemma-2b-wikitext",
     optim="adafactor",
-    learning_rate=5e-5,
+    learning_rate=1e-4,
     bf16=True,
+    logging_first_step=True,
+    logging_steps=1,
+    save_strategy="epoch",
+    # warmup_ratio=0.1,
+    max_grad_norm=1.0,
 )
 
 trainer = Trainer(
@@ -122,7 +129,7 @@ trainer = Trainer(
     tokenizer=tokenizer,
     args=training_args,
     train_dataset=lm_datasets["train"],
-    eval_dataset=lm_datasets["validation"],
+    # eval_dataset=lm_datasets["validation"],
     data_collator=default_data_collator,
 )
 
