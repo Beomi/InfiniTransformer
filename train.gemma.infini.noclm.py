@@ -806,8 +806,8 @@ def main():
                         memory=memory,
                         norm_term=norm_term,
                     )
-                    memory = outputs.memory
-                    norm_term = outputs.norm_term
+                memory = outputs.memory
+                norm_term = outputs.norm_term
 
             loss = outputs.loss
             losses.append(
