@@ -39,7 +39,7 @@ python test_basic.py
 ### 5. Train with your data
 
 ```bash
-python test_train.small.py
+python test_train.small.gemma.py
 ```
 
 <img width="808" alt="image" src="https://github.com/Beomi/InfiniTransformer/assets/11323660/c3cb7b1e-531c-4652-a5de-fcf36b1c03bc">
