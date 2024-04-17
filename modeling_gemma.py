@@ -731,10 +731,15 @@ class GemmaInfiniAttention(GemmaAttention):
             list(range(self.segment_size, total_len, self.segment_size)),
             dim=1,
         )
-        final_outputs = []
+        
+        # Pre-allocate tensor for all outputs
+        bsz, _, hidden_dim = hidden_states.size()
+        final_output = torch.empty(bsz, total_len, hidden_dim, device=hidden_states.device, dtype=hidden_states.dtype)
+
 
         debug_print("len(segments):", len(segments))
 
+        start_index = 0
         for segment in segments:
             # Process each segment
             query_states = self.q_proj(segment)
@@ -811,11 +816,20 @@ class GemmaInfiniAttention(GemmaAttention):
             # Prepare output for this segment
             combined_output = combined_output.transpose(1, 2).contiguous()
             combined_output = combined_output.view(bsz, q_len, self.hidden_size)
-            final_outputs.append(self.o_proj(combined_output))
+            
+            segment_output = self.o_proj(combined_output)
+        
+            # Determine the segment size (important for the last segment which might be smaller)
+            current_segment_size = segment.size(1)
 
-        # Concatenate outputs from all segments
-        final_output = torch.cat(final_outputs, dim=1)
+            # Fill the corresponding part of the pre-allocated tensor
+            final_output[:, start_index:start_index + current_segment_size, :] = segment_output
+            start_index += current_segment_size
+            
         return final_output, None, None
+        # Concatenate outputs from all segments
+        # final_output = torch.cat(final_outputs, dim=1)
+        # return final_output, None, None
 
     def _retrieve_from_memory(self, query_states):
         # query_states: [batch_size, num_heads, seq_len, head_dim]
