@@ -13,7 +13,7 @@ Unofficial PyTorch/🤗Transformers(+Gemma) implementation of Leave No Context B
 - Overrides modeling python file only, especially Attention layer only.
 - Minimal edit, fully compatible with HF(Trainer, etc)
 - Memory usage is ~eq with SDPA(default) attention
-  - can train Gemma-2B with 8192 seq len(128*64) on 2x H100 80G (with Adafactor optimizer)
+  - can train Gemma-2B with 8192 seq len(128*64) on 2x H100 80G (with Adafactor Optimizer + Gradient Checkpointing)
 
 **Part II. Infini Attention in Model-wise, Trainer-wise**
 
@@ -21,7 +21,7 @@ Unofficial PyTorch/🤗Transformers(+Gemma) implementation of Leave No Context B
 - Full edit, Not compatible with basic HF trainer.
 - Need custom training code
 - Memory usage is **much lower** than SDPA(default) attention
-  - can train Gemma-2B with 32768 seq len(2048*16) on 2x H100 80G (with AdamW optimizer)
+  - can train Gemma-2B with 32768 seq len(2048*16) on 2x H100 80G (with AdamW optimizer, No gradient checkpointing)
 
 ## How to use Part I. Infini Attention in Attention-Layer only
 
