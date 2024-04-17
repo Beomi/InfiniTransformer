@@ -751,7 +751,8 @@ def main():
                 progress_bar.update(1)
                 completed_steps += 1
             # Log the training loss and lr every 100 steps
-            if completed_steps % 100 == 0:
+            LOG_INTERVAL = 1
+            if completed_steps % LOG_INTERVAL == 0:
                 avg_segment_loss = total_segment_loss / len(input_ids)
                 print(
                     f"Step: {completed_steps}, Loss: {avg_segment_loss.item()}, LR: {lr_scheduler.get_last_lr()[0]}"

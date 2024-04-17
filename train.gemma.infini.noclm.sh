@@ -1,4 +1,4 @@
-python train.gemma.infini.noclm.py \
+accelerate launch --mixed_precision='bf16' train.gemma.infini.noclm.py \
     --model_name_or_path='google/gemma-2b' \
     --segment_length=2048 \
     --block_size=32768 \
