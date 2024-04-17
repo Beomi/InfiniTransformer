@@ -58,18 +58,12 @@ python test_basic.trained.py
 
 Input:
 
-```
-This work introduces an efficient method to scale Transformer-based
-```
+> This work introduces an efficient method to scale Transformer-based
 
 Output1:
 
-```
-models for denoising , denoising denoising , and deep denoising of images of the U2 EPK model , using a coefficient that is a function of the depth of the image resolution . The paper experiments with image denoising by Turbo @-@ based filtering , denoising by generative adversarial networks , and video denoising by denoising each of the three elements of the video ( color of the pixels / frames ) . The results are considered fair . The video is not discussed . The paper is not considering an actual application in an industrial context ,  line is probably a 1 . It is built in the Nohmi…
-```
+> models for denoising , denoising denoising , and deep denoising of images of the U2 EPK model , using a coefficient that is a function of the depth of the image resolution . The paper experiments with image denoising by Turbo @-@ based filtering , denoising by generative adversarial networks , and video denoising by denoising each of the three elements of the video ( color of the pixels / frames ) . The results are considered fair . The video is not discussed . The paper is not considering an actual application in an industrial context ,  line is probably a 1 . It is built in the Nohmi…
 
 Output2:
 
-```
-vision models across platforms using a custom architecture optimized for both vision ( 3D / 2D ) and vision and language . In other words , a single model can run on different types of devices , a feature that is critical for the development of general @-@ purpose and large-scale AI ( see also : The One @-@ Model @-@ for @-@ All @-@ Things @-@ AI Problem ) . The model is the first to reach a global scale ( 200 GPU + ) on a single GPU using the Transformer and its variants . The model can run at the end of 1967 . He had his family relocated to a house in a nearby neighborhood , where they lived for five years , before returning to their primary residence in St. Petersburg . Later comments of 1968 made by his fellow musician Bruce Hornsby made it clear that he had gone through a lot , both personally and professionally . 
-```
+> vision models across platforms using a custom architecture optimized for both vision ( 3D / 2D ) and vision and language . In other words , a single model can run on different types of devices , a feature that is critical for the development of general @-@ purpose and large-scale AI ( see also : The One @-@ Model @-@ for @-@ All @-@ Things @-@ AI Problem ) . The model is the first to reach a global scale ( 200 GPU + ) on a single GPU using the Transformer and its variants . The model can run at the end of 1967 . He had his family relocated to a house in a nearby neighborhood , where they lived for five years , before returning to their primary residence in St. Petersburg . Later comments of 1968 made by his fellow musician Bruce Hornsby made it clear that he had gone through a lot , both personally and professionally . 
