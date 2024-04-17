@@ -818,7 +818,7 @@ class GemmaInfiniAttention(GemmaAttention):
         return final_output, None, None
 
     def _retrieve_from_memory(self, query_states):
-        # query_states: [batch_size, seq_len, num_heads, head_dim]
+        # query_states: [batch_size, num_heads, seq_len, head_dim]
 
         # Check if memory is initialized
         if self.memory is None or self.norm_term is None:
@@ -838,8 +838,7 @@ class GemmaInfiniAttention(GemmaAttention):
         # Broadcast norm_term to the shape of query_states, then sum across head_dim for normalization
         norm_term_broadcastable = torch.matmul(
             query_states,
-            self.norm_term
-            .transpose(-2, -1),
+            self.norm_term.transpose(-2, -1),
         )
         debug_print(
             "[Broadcast] norm_term_broadcastable.shape", norm_term_broadcastable.shape
@@ -850,8 +849,8 @@ class GemmaInfiniAttention(GemmaAttention):
         return memory_output
 
     def _update_memory(self, key_states, value_states):
-        # key_states: [batch_size, seq_len, num_heads, head_dim]
-        # value_states: [batch_size, seq_len, num_heads, value_dim]
+        # key_states: [batch_size, num_heads, seq_len, head_dim]
+        # value_states: [batch_size, num_heads, seq_len, value_dim]
 
         key_states = F.elu(key_states) + 1  # Apply ELU activation
 
