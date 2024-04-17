@@ -44,4 +44,4 @@ python test_train.small.py
 
 Example code used wikitext-2-raw-v1 from https://huggingface.co/datasets/wikitext
 
-Here's the wandb log for 
+Here's the test wandb log here -> https://api.wandb.ai/links/beomi2/1rsqrkfn
