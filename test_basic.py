@@ -44,6 +44,9 @@ model.to(device)
 # Generate some dummy input data
 tokenizer = AutoTokenizer.from_pretrained("google/gemma-2b")
 text = """This work introduces an efficient method to scale Transformer-based"""
+longtext = """The new memory states M s and z s are then passed to the next segment S + 1, building in a recurrence in each attention layer. The right side term σ (K ) T V in Eq. (4) is known as an associative binding operator (Smolensky, 1990; Hebb, 2005; Schlag et al., 2020).
+Inspired by the success of delta rule (Munkhdalai et al., 2019; Schlag et al., 2020; 2021), we have also incorporated it into our Infini-attention. The delta rule attempts a slightly improved memory update by first retrieving existing value entries and subtracting them from the new values before applying the associative bindings as new update."""
+
 encoded = tokenizer(
     text,
     return_tensors="pt",
@@ -51,11 +54,23 @@ encoded = tokenizer(
 # attention_mask = torch.ones_like(input_ids)
 encoded["labels"] = encoded["input_ids"].clone()
 
+long_encoded = tokenizer(
+    longtext,
+    return_tensors="pt",
+)
+# attention_mask = torch.ones_like(input_ids)
+long_encoded["labels"] = long_encoded["input_ids"].clone()
+
 print(encoded)
 # Test the forward pass
 outputs = model(**encoded.to(device))  # position_ids=position_ids)
+print("Short Text Loss")
 print(outputs.loss)
+outputs.loss.backward()  # Test the backward pass
 
+outputs = model(**long_encoded.to(device))  # position_ids=position_ids)
+print("Long Text Loss")
+print(outputs.loss)
 outputs.loss.backward()  # Test the backward pass
 
 print("backprop done")

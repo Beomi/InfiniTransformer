@@ -818,6 +818,8 @@ class GemmaInfiniAttention(GemmaAttention):
         return final_output, None, None
 
     def _retrieve_from_memory(self, query_states):
+        # query_states: [batch_size, seq_len, num_heads, head_dim]
+
         # Check if memory is initialized
         if self.memory is None or self.norm_term is None:
             debug_print("[Retrieve] No memory or norm term found")
@@ -833,9 +835,9 @@ class GemmaInfiniAttention(GemmaAttention):
         debug_print("[Retrieve] memory_output.shape", memory_output.shape)
         debug_print("[Retrieve] self.norm_term.shape", self.norm_term.shape)
 
-        # Ensure norm_term is broadcastable to memory_output shape: [batch_size, num_heads, seq_len, head_dim]
-        norm_term_broadcastable = self.norm_term.unsqueeze(1).expand(
-            -1, query_states.size(1), query_states.size(2), -1
+        # Broadcast norm_term to the shape of query_states, then sum across head_dim for normalization
+        norm_term_broadcastable = self.norm_term.expand_as(query_states).sum(
+            dim=3, keepdim=True
         )
         debug_print(
             "[Broadcast] norm_term_broadcastable.shape", norm_term_broadcastable.shape
@@ -846,8 +848,11 @@ class GemmaInfiniAttention(GemmaAttention):
         return memory_output
 
     def _update_memory(self, key_states, value_states):
-        # Ensure that norm_term is initialized
+        # key_states: [batch_size, seq_len, num_heads, head_dim]
+        # value_states: [batch_size, seq_len, num_heads, value_dim]
+
         key_states = F.elu(key_states) + 1  # Apply ELU activation
+
         if self.memory is not None:
             self.memory = self.memory + torch.matmul(
                 key_states.transpose(-2, -1), value_states
@@ -857,10 +862,12 @@ class GemmaInfiniAttention(GemmaAttention):
 
         if self.norm_term is not None:
             self.norm_term = self.norm_term + key_states.sum(
-                dim=2
+                dim=2, keepdim=True
             )  # Update normalization term
         else:
-            self.norm_term = key_states.sum(dim=2)  # Initialize normalization term
+            self.norm_term = key_states.sum(
+                dim=2, keepdim=True
+            )  # Initialize normalization term
 
         debug_print("[Update] self.memory.shape", self.memory.shape)
         debug_print("[Update] self.norm_term.shape", self.norm_term.shape)
