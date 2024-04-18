@@ -758,6 +758,12 @@ class GemmaInfiniAttention(GemmaAttention):
                 bsz, q_len, self.num_key_value_heads, self.head_dim
             ).transpose(1, 2)
 
+            # Memory retrieval and update should be w/o PE
+            memory_output = self._retrieve_from_memory(query_states)
+            debug_print("Memory Output Shape:", memory_output.shape)
+            # Update memory with current segment's key and value states
+            self._update_memory(key_states, value_states)
+
             # Rotary embeddings, set seq_len to q_len as we are processing a segment
             cos, sin = self.rotary_emb(value_states, position_ids, seq_len=q_len)
 
@@ -783,11 +789,6 @@ class GemmaInfiniAttention(GemmaAttention):
                 )
 
             # GQA
-            # Memory retrieval and attention calculation per segment
-            memory_output = self._retrieve_from_memory(query_states)
-            debug_print("Memory Output Shape:", memory_output.shape)
-            # Update memory with current segment's key and value states
-            self._update_memory(key_states, value_states)
             key_states = repeat_kv(key_states, self.num_key_value_groups)
             value_states = repeat_kv(value_states, self.num_key_value_groups)
 
