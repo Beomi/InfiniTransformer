@@ -439,14 +439,14 @@ def main():
             config=config,
             low_cpu_mem_usage=args.low_cpu_mem_usage,
             trust_remote_code=args.trust_remote_code,
-            torch_dtype="auto",
+            # torch_dtype="auto",
             device_map="auto",
         )
     else:
         logger.info("Training new model from scratch")
         model = GemmaForCausalLM(
             config,
-            torch_dtype=torch.bfloat16,
+            # torch_dtype=torch.bfloat16,
             device_map="auto",
         )
 
@@ -740,10 +740,13 @@ def main():
                 memory = outputs.memory
                 norm_term = outputs.norm_term
                 loss = outputs.loss
+                # print("Loss:", loss.item())
                 # accelerator.backward(loss, retain_graph=True)
                 accelerator.backward(loss)
-                total_loss += loss.detach().float()
-                total_segment_loss += loss.detach().float()
+                total_loss += loss  # .detach().float()
+                total_segment_loss += loss  # .detach().float()
+                # print("Total loss:", total_loss)
+                # print("Total segment loss:", total_segment_loss)
             optimizer.step()
             lr_scheduler.step()
             optimizer.zero_grad()
@@ -766,6 +769,8 @@ def main():
                     accelerator.save_state(output_dir)
             if completed_steps >= args.max_train_steps:
                 break
+
+        print("Finished epoch:", epoch)
 
         model.eval()
         losses = []
