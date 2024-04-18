@@ -20,6 +20,7 @@ Unofficial PyTorch/🤗Transformers(+Gemma) implementation of Leave No Context B
 - Need custom training code
 - Memory usage is **much lower** than SDPA(default) attention
   - can train Gemma-2B with 32768 seq len(2048*16) on 2x H100 80G (with AdamW optimizer, No gradient checkpointing)
+- Can train 'infinite' context -- check `train.gemma.infini.noclm.1Mseq.sh` with 1x H100 80G (with AdamW optimizer, No gradient checkpointing)
 
 ## How to use Type I. Infini Attention in Attention-Layer only
 
@@ -108,6 +109,16 @@ python test_basic.infini.py
 
 ### 4. Train with your data
 
+Train 32K seq len with 2K segment size, with [WikiText2 Dataset](https://huggingface.co/datasets/wikitext)
+
 ```bash
 ./train.gemma.infini.noclm.sh
+```
+
+or
+
+Train 1M seq len with 2K segment size, with [MiniPile Dataset](https://huggingface.co/datasets/JeanKaddour/minipile)
+
+```bash
+./train.gemma.infini.noclm.1Mseq.sh
 ```
