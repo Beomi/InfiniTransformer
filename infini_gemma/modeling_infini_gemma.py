@@ -804,6 +804,7 @@ class GemmaInfiniAttention(GemmaAttention):
         cache_position: Optional[torch.LongTensor] = None,
         memory: Optional[torch.Tensor] = None,
         norm_term: Optional[torch.Tensor] = None,
+        no_memory_update: bool = False,
         **kwargs,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
         segment = hidden_states  # no need to split in TYPE-2 implementation
@@ -842,16 +843,20 @@ class GemmaInfiniAttention(GemmaAttention):
         )
         debug_print("Memory Output Shape:", memory_output.shape)
         # Update memory with current segment's key and value states
-        updated_memory, updated_norm_term = self._update_memory(
-            key_states,
-            value_states,
-            memory.get(self.layer_idx, None),
-            norm_term.get(self.layer_idx, None),
-        )
-        debug_print("Memory Output Shape:", updated_memory.shape)
-        debug_print("Updated Memory Shape:", updated_norm_term.shape)
-        memory[self.layer_idx] = updated_memory.detach()
-        norm_term[self.layer_idx] = updated_norm_term.detach()
+        if no_memory_update:
+            # do not update memory
+            pass
+        else:
+            updated_memory, updated_norm_term = self._update_memory(
+                key_states,
+                value_states,
+                memory.get(self.layer_idx, None),
+                norm_term.get(self.layer_idx, None),
+            )
+            debug_print("Memory Output Shape:", updated_memory.shape)
+            debug_print("Updated Memory Shape:", updated_norm_term.shape)
+            memory[self.layer_idx] = updated_memory.detach()
+            norm_term[self.layer_idx] = updated_norm_term.detach()
 
         # Rotary embeddings, set seq_len to q_len as we are processing a segment
         cos, sin = self.rotary_emb(value_states, position_ids, seq_len=q_len)
@@ -1008,6 +1013,7 @@ class GemmaDecoderLayer(nn.Module):
         cache_position: Optional[torch.LongTensor] = None,
         memory: Optional[torch.Tensor] = None,
         norm_term: Optional[torch.Tensor] = None,
+        no_memory_update: Optional[bool] = False,
         **kwargs,
     ) -> Tuple[
         torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]
@@ -1046,6 +1052,7 @@ class GemmaDecoderLayer(nn.Module):
             cache_position=cache_position,
             memory=memory,
             norm_term=norm_term,
+            no_memory_update=no_memory_update,
             **kwargs,
         )
         hidden_states, self_attn_weights, present_key_value, memory, norm_term = (
@@ -1275,6 +1282,7 @@ class GemmaModel(GemmaPreTrainedModel):
         cache_position: Optional[torch.LongTensor] = None,
         memory: Optional[torch.Tensor] = None,
         norm_term: Optional[torch.Tensor] = None,
+        no_memory_update: Optional[bool] = False,
     ) -> Union[Tuple, InfiniBaseModelOutputWithPast]:
         output_attentions = (
             output_attentions
@@ -1360,6 +1368,7 @@ class GemmaModel(GemmaPreTrainedModel):
                     cache_position,
                     memory,  # FIXME?
                     norm_term,
+                    no_memory_update,
                 )
             else:
                 layer_outputs = decoder_layer(
@@ -1372,6 +1381,7 @@ class GemmaModel(GemmaPreTrainedModel):
                     cache_position=cache_position,
                     memory=memory,
                     norm_term=norm_term,
+                    no_memory_update=no_memory_update,
                 )
 
             hidden_states = layer_outputs[0]
@@ -1547,6 +1557,7 @@ class GemmaForCausalLM(GemmaPreTrainedModel):
         cache_position: Optional[torch.LongTensor] = None,
         memory: Optional[torch.Tensor] = None,
         norm_term: Optional[torch.Tensor] = None,
+        no_memory_update: Optional[bool] = False,
     ) -> Union[Tuple, InfiniCausalLMOutputWithPast]:
         r"""
         Args:
@@ -1601,6 +1612,7 @@ class GemmaForCausalLM(GemmaPreTrainedModel):
             cache_position=cache_position,
             memory=memory,
             norm_term=norm_term,
+            no_memory_update=no_memory_update,
         )
 
         hidden_states = outputs[0]
