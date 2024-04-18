@@ -618,7 +618,7 @@ def main():
         experiment_config["lr_scheduler_type"] = experiment_config[
             "lr_scheduler_type"
         ].value
-        accelerator.init_trackers("clm_no_trainer", experiment_config)
+        accelerator.init_trackers("InfiniTransformer", experiment_config)
 
     # Train!
     total_batch_size = (
@@ -761,6 +761,8 @@ def main():
                 print(
                     f"Step: {completed_steps}, Loss: {avg_segment_loss.item()}, LR: {lr_scheduler.get_last_lr()[0]}"
                 )
+                # Log to wandb by calling `accelerator.log`, `step` is optional
+                accelerator.log({"train_loss": avg_segment_loss.item(), "lr": lr_scheduler.get_last_lr()[0]}, step=completed_steps)
             if isinstance(checkpointing_steps, int):
                 if completed_steps % checkpointing_steps == 0:
                     output_dir = f"step_{completed_steps}"
