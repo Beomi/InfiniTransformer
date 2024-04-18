@@ -6,14 +6,14 @@ Unofficial PyTorch/🤗Transformers(+Gemma) implementation of Leave No Context B
 
 ## Two types of Implemenation for Infini-Attention
 
-**Part I. Infini Attention in Attention-Layer only**
+**Type I. Infini Attention in Attention-Layer only**
 
 - Overrides modeling python file only, especially Attention layer only.
 - Minimal edit, fully compatible with HF(Trainer, etc)
 - Memory usage is ~eq with SDPA(default) attention
   - can train Gemma-2B with 8192 seq len(128*64) on 2x H100 80G (with Adafactor Optimizer + Gradient Checkpointing)
 
-**Part II. Infini Attention in Model-wise, Trainer-wise**
+**Type II. Infini Attention in Model-wise, Trainer-wise**
 
 - Overrides modeling and config python files.
 - Full edit, Not compatible with basic HF trainer.
@@ -21,7 +21,7 @@ Unofficial PyTorch/🤗Transformers(+Gemma) implementation of Leave No Context B
 - Memory usage is **much lower** than SDPA(default) attention
   - can train Gemma-2B with 32768 seq len(2048*16) on 2x H100 80G (with AdamW optimizer, No gradient checkpointing)
 
-## How to use Part I. Infini Attention in Attention-Layer only
+## How to use Type I. Infini Attention in Attention-Layer only
 
 ### 1. Clone this repository
 
@@ -82,7 +82,7 @@ Output2:
 
 > vision models across platforms using a custom architecture optimized for both vision ( 3D / 2D ) and vision and language . In other words , a single model can run on different types of devices , a feature that is critical for the development of general @-@ purpose and large-scale AI ( see also : The One @-@ Model @-@ for @-@ All @-@ Things @-@ AI Problem ) . The model is the first to reach a global scale ( 200 GPU + ) on a single GPU using the Transformer and its variants . The model can run at the end of 1967 . He had his family relocated to a house in a nearby neighborhood , where they lived for five years , before returning to their primary residence in St. Petersburg . Later comments of 1968 made by his fellow musician Bruce Hornsby made it clear that he had gone through a lot , both personally and professionally .
 
-## How to use Part II. Infini Attention in Model-wise, Trainer-wise.
+## How to use Type II. Infini Attention in Model-wise, Trainer-wise.
 
 ### 1. Clone this repository
 
