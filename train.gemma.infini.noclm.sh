@@ -17,3 +17,5 @@ accelerate launch --mixed_precision='bf16' \
     --seed=42 \
     --low_cpu_mem_usage \
     --report_to='wandb' \
+    --preprocessing_num_workers=64 \
+    --with_tracking \

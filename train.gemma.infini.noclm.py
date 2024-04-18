@@ -628,7 +628,8 @@ def main():
     )
 
     logger.info("***** Running training *****")
-    logger.info(f"  Num examples = {len(train_dataset)}")
+    num_examples = len(train_dataset)
+    logger.info(f"  Num examples = {num_examples}")
     logger.info(f"  Num Epochs = {args.num_train_epochs}")
     logger.info(
         f"  Instantaneous batch size per device = {args.per_device_train_batch_size}"
@@ -762,7 +763,14 @@ def main():
                     f"Step: {completed_steps}, Loss: {avg_segment_loss.item()}, LR: {lr_scheduler.get_last_lr()[0]}"
                 )
                 # Log to wandb by calling `accelerator.log`, `step` is optional
-                accelerator.log({"train_loss": avg_segment_loss.item(), "lr": lr_scheduler.get_last_lr()[0]}, step=completed_steps)
+                accelerator.log(
+                    {
+                        "train/loss": avg_segment_loss.item(),
+                        "train/learning_rate": lr_scheduler.get_last_lr()[0],
+                        "train/epoch": completed_steps / num_examples,
+                    },
+                    step=completed_steps,
+                )
             if isinstance(checkpointing_steps, int):
                 if completed_steps % checkpointing_steps == 0:
                     output_dir = f"step_{completed_steps}"
