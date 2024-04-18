@@ -1,4 +1,4 @@
-export CUDA_VISIBLE_DEVICES=0
+# export CUDA_VISIBLE_DEVICES=0
 
 accelerate launch --mixed_precision='bf16' \
     train.gemma.infini.noclm.py \
