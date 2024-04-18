@@ -740,7 +740,8 @@ def main():
                 memory = outputs.memory
                 norm_term = outputs.norm_term
                 loss = outputs.loss
-                accelerator.backward(loss, retain_graph=True)
+                # accelerator.backward(loss, retain_graph=True)
+                accelerator.backward(loss)
                 total_loss += loss.detach().float()
                 total_segment_loss += loss.detach().float()
             optimizer.step()

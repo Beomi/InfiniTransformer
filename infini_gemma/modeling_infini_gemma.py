@@ -907,7 +907,7 @@ class GemmaInfiniAttention(GemmaAttention):
             final_output[:, start_index:start_index + current_segment_size, :] = segment_output
             start_index += current_segment_size
             
-        return final_output, None, None, self.memory, self.norm_term
+        return final_output, None, None, self.memory.detach(), self.norm_term.detach()
     
 
     def _retrieve_from_memory(self, query_states):
