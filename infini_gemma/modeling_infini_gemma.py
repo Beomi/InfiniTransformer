@@ -37,7 +37,10 @@ from transformers.modeling_outputs import (
     SequenceClassifierOutputWithPast,
 )
 from transformers.modeling_utils import PreTrainedModel
-from transformers.pytorch_utils import ALL_LAYERNORM_LAYERS, is_torch_greater_or_equal_than_1_13
+from transformers.pytorch_utils import (
+    ALL_LAYERNORM_LAYERS,
+    is_torch_greater_or_equal_than_1_13,
+)
 from transformers.utils import (
     add_start_docstrings,
     add_start_docstrings_to_model_forward,
@@ -76,6 +79,7 @@ if is_torch_fx_available():
 logger = logging.get_logger(__name__)
 
 _CONFIG_FOR_DOC = "GemmaConfig"
+
 
 @dataclass
 class InfiniBaseModelOutputWithPast(ModelOutput):
@@ -168,7 +172,6 @@ def _get_unpad_data(attention_mask):
         cu_seqlens,
         max_seqlen_in_batch,
     )
-
 
 
 class GemmaRMSNorm(nn.Module):
@@ -803,9 +806,6 @@ class GemmaInfiniAttention(GemmaAttention):
         norm_term: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> Tuple[torch.Tensor, Optional[torch.Tensor], Optional[Tuple[torch.Tensor]]]:
-        self.memory = memory
-        self.norm_term = norm_term
-
         total_len = hidden_states.size(1)
         debug_print("total_len", total_len)
         segments = torch.tensor_split(
@@ -813,10 +813,16 @@ class GemmaInfiniAttention(GemmaAttention):
             list(range(self.segment_size, total_len, self.segment_size)),
             dim=1,
         )
-        
+
         # Pre-allocate tensor for all outputs
         bsz, _, hidden_dim = hidden_states.size()
-        final_output = torch.empty(bsz, total_len, hidden_dim, device=hidden_states.device, dtype=hidden_states.dtype)
+        final_output = torch.empty(
+            bsz,
+            total_len,
+            hidden_dim,
+            device=hidden_states.device,
+            dtype=hidden_states.dtype,
+        )
 
         debug_print("len(segments):", len(segments))
 
@@ -865,10 +871,12 @@ class GemmaInfiniAttention(GemmaAttention):
 
             # GQA
             # Memory retrieval and attention calculation per segment
-            memory_output = self._retrieve_from_memory(query_states)
+            memory_output = self._retrieve_from_memory(query_states, memory, norm_term)
             debug_print("Memory Output Shape:", memory_output.shape)
             # Update memory with current segment's key and value states
-            self._update_memory(key_states, value_states)
+            updated_memory, updated_norm_term = self._update_memory(
+                key_states, value_states, memory, norm_term
+            )
             key_states = repeat_kv(key_states, self.num_key_value_groups)
             value_states = repeat_kv(value_states, self.num_key_value_groups)
 
@@ -897,41 +905,48 @@ class GemmaInfiniAttention(GemmaAttention):
             # Prepare output for this segment
             combined_output = combined_output.transpose(1, 2).contiguous()
             combined_output = combined_output.view(bsz, q_len, self.hidden_size)
-            
+
             segment_output = self.o_proj(combined_output)
-        
+
             # Determine the segment size (important for the last segment which might be smaller)
             current_segment_size = segment.size(1)
 
             # Fill the corresponding part of the pre-allocated tensor
-            final_output[:, start_index:start_index + current_segment_size, :] = segment_output
+            final_output[:, start_index : start_index + current_segment_size, :] = (
+                segment_output
+            )
             start_index += current_segment_size
-            
-        return final_output, None, None, self.memory.detach(), self.norm_term.detach()
-    
 
-    def _retrieve_from_memory(self, query_states):
+        return (
+            final_output,
+            None,
+            None,
+            updated_memory.detach(),
+            updated_norm_term.detach(),
+        )
+
+    def _retrieve_from_memory(self, query_states, memory, norm_term):
         # query_states: [batch_size, num_heads, seq_len, head_dim]
 
         # Check if memory is initialized
-        if self.memory is None or self.norm_term is None:
+        if memory is None or norm_term is None:
             debug_print("[Retrieve] No memory or norm term found")
             return torch.zeros_like(query_states)
 
         debug_print("[Retrieve] query_states.shape", query_states.shape)
-        debug_print("[Retrieve] self.memory.shape", self.memory.shape)
+        debug_print("[Retrieve] self.memory.shape", memory.shape)
 
         # Apply ELU activation
         query_states = F.elu(query_states) + 1  # ELU activation + 1 for stability
-        memory_output = torch.matmul(query_states, self.memory)
+        memory_output = torch.matmul(query_states, memory)
 
         debug_print("[Retrieve] memory_output.shape", memory_output.shape)
-        debug_print("[Retrieve] self.norm_term.shape", self.norm_term.shape)
+        debug_print("[Retrieve] self.norm_term.shape", norm_term.shape)
 
         # Broadcast norm_term to the shape of query_states, then sum across head_dim for normalization
         norm_term_broadcastable = torch.matmul(
             query_states,
-            self.norm_term.transpose(-2, -1),
+            norm_term.transpose(-2, -1),
         )
         debug_print(
             "[Broadcast] norm_term_broadcastable.shape", norm_term_broadcastable.shape
@@ -941,30 +956,30 @@ class GemmaInfiniAttention(GemmaAttention):
         memory_output = memory_output / norm_term_broadcastable
         return memory_output
 
-    def _update_memory(self, key_states, value_states):
+    def _update_memory(self, key_states, value_states, memory, norm_term):
         # key_states: [batch_size, num_heads, seq_len, head_dim]
         # value_states: [batch_size, num_heads, seq_len, value_dim]
 
         key_states = F.elu(key_states) + 1  # Apply ELU activation
 
-        if self.memory is not None:
-            self.memory = self.memory + torch.matmul(
-                key_states.transpose(-2, -1), value_states
-            )
+        if memory is not None:
+            memory = memory + torch.matmul(key_states.transpose(-2, -1), value_states)
         else:
-            self.memory = torch.matmul(key_states.transpose(-2, -1), value_states)
+            memory = torch.matmul(key_states.transpose(-2, -1), value_states)
 
-        if self.norm_term is not None:
-            self.norm_term = self.norm_term + key_states.sum(
+        if norm_term is not None:
+            norm_term = norm_term + key_states.sum(
                 dim=2, keepdim=True
             )  # Update normalization term
         else:
-            self.norm_term = key_states.sum(
+            norm_term = key_states.sum(
                 dim=2, keepdim=True
             )  # Initialize normalization term
 
-        debug_print("[Update] self.memory.shape", self.memory.shape)
-        debug_print("[Update] self.norm_term.shape", self.norm_term.shape)
+        debug_print("[Update] self.memory.shape", memory.shape)
+        debug_print("[Update] self.norm_term.shape", norm_term.shape)
+
+        return memory, norm_term
 
 
 # GEMMA_ATTENTION_CLASSES = {
@@ -980,7 +995,7 @@ class GemmaDecoderLayer(nn.Module):
         super().__init__()
         self.hidden_size = config.hidden_size
 
-        self.self_attn = GemmaInfiniAttention( #GEMMA_ATTENTION_CLASSES[config._attn_implementation](
+        self.self_attn = GemmaInfiniAttention(  # GEMMA_ATTENTION_CLASSES[config._attn_implementation](
             config=config, layer_idx=layer_idx
         )
 
@@ -1041,7 +1056,9 @@ class GemmaDecoderLayer(nn.Module):
             norm_term=norm_term,
             **kwargs,
         )
-        hidden_states, self_attn_weights, present_key_value, memory, norm_term = _attended
+        hidden_states, self_attn_weights, present_key_value, memory, norm_term = (
+            _attended
+        )
         hidden_states = residual + hidden_states
 
         # Fully Connected
@@ -1059,7 +1076,10 @@ class GemmaDecoderLayer(nn.Module):
             outputs += (present_key_value,)
 
         if memory is not None and norm_term is not None:
-            outputs += (memory, norm_term,)
+            outputs += (
+                memory,
+                norm_term,
+            )
 
         return outputs
 
@@ -1346,7 +1366,7 @@ class GemmaModel(GemmaPreTrainedModel):
                     output_attentions,
                     use_cache,
                     cache_position,
-                    memory, # FIXME?
+                    memory,  # FIXME?
                     norm_term,
                 )
             else:
@@ -1741,5 +1761,6 @@ class GemmaForCausalLM(GemmaPreTrainedModel):
                 ),
             )
         return reordered_past
+
 
 # Remove: Classifiers
