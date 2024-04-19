@@ -829,19 +829,20 @@ class GemmaInfiniAttention(GemmaAttention):
         ).transpose(1, 2)
 
         # memory and norm_term should use layer_idx to store the memory and norm_term
-        if memory is None:
+        if no_memory_update:
             memory = {}
-        if norm_term is None:
             norm_term = {}
+            memory_output = None
+        else:
+            # Infini Attention memory does not use PE
+            # Memory retrieval and attention calculation per segment
+            memory_output = self._retrieve_from_memory(
+                query_states,
+                memory.get(self.layer_idx, None) if memory is not None else None,
+                norm_term.get(self.layer_idx, None) if norm_term is not None else None,
+            )
+            debug_print("Memory Output Shape:", memory_output.shape)
 
-        # Infini Attention memory does not use PE
-        # Memory retrieval and attention calculation per segment
-        memory_output = self._retrieve_from_memory(
-            query_states,
-            memory.get(self.layer_idx, None),
-            norm_term.get(self.layer_idx, None),
-        )
-        debug_print("Memory Output Shape:", memory_output.shape)
         # Update memory with current segment's key and value states
         if no_memory_update:
             # do not update memory
@@ -850,11 +851,14 @@ class GemmaInfiniAttention(GemmaAttention):
             updated_memory, updated_norm_term = self._update_memory(
                 key_states,
                 value_states,
-                memory.get(self.layer_idx, None),
-                norm_term.get(self.layer_idx, None),
+                memory.get(self.layer_idx, None) if memory is not None else None,
+                norm_term.get(self.layer_idx, None) if norm_term is not None else None,
             )
             debug_print("Memory Output Shape:", updated_memory.shape)
             debug_print("Updated Memory Shape:", updated_norm_term.shape)
+            if memory is None and norm_term is None:
+                memory = {}
+                norm_term = {}
             memory[self.layer_idx] = updated_memory.detach()
             norm_term[self.layer_idx] = updated_norm_term.detach()
 
@@ -903,16 +907,23 @@ class GemmaInfiniAttention(GemmaAttention):
             dropout_p=self.attention_dropout if self.training else 0.0,
         )
 
-        combined_output = (
-            F.sigmoid(self.gate) * memory_output
-            + (1 - F.sigmoid(self.gate)) * attn_output
-        )
+        if memory_output is None:
+            combined_output = attn_output
+        else:
+            combined_output = (
+                F.sigmoid(self.gate) * memory_output
+                + (1 - F.sigmoid(self.gate)) * attn_output
+            )
 
         # Prepare output for this segment
         combined_output = combined_output.transpose(1, 2).contiguous()
         combined_output = combined_output.view(bsz, q_len, self.hidden_size)
 
         final_output = self.o_proj(combined_output)
+
+        if no_memory_update:
+            memory = None
+            norm_term = None
 
         return (
             final_output,

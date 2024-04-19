@@ -62,6 +62,7 @@ def generate_text_with_stateful_segments(
     generated_sequence = input_ids
     print("Target seq len:", original_length + max_length)
     while generated_sequence.size(1) < original_length + max_length:
+        # print("generated_sequence.size(1):", generated_sequence.size(1))
         past = None
         # if generated_sequence.size(1) over segment_length, re-compute memory and norm_term
         if generated_sequence.size(1) % segment_length == 0:
@@ -150,7 +151,7 @@ with torch.no_grad():
 
     print("-" * 40)
 
-# # Sample prompt
+# Sample prompt
 prompt_text = "Once upon a time"
 
 # Generate text
@@ -269,7 +270,7 @@ Just then she heard something splashing about in the pool a little way off, and 
 So she called softly after it,
 """.strip()
 
-# Generate text
+# Generate text: uses 10GB vram
 # with torch.autograd.profiler.profile(use_cuda=True) as prof:
 with torch.no_grad():
     generated_text = generate_text_with_stateful_segments(
