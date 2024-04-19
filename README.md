@@ -24,7 +24,7 @@ with Llama3 and Gemma model supported. (Llama 2 and 1 is also supported)
 - Memory usage is ~eq with SDPA(default) attention
   - can train Gemma-2B with 8192 seq len(128*64) on 2x H100 80G (with Adafactor Optimizer + Gradient Checkpointing)
 
-## How to use Type II. Infini Attention in Model-wise, Trainer-wise.
+## How to use Type I. Infini Attention in Model-wise, Trainer-wise.
 
 ### 1. Clone this repository
 
