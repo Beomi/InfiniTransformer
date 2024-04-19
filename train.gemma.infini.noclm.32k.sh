@@ -8,7 +8,6 @@ accelerate launch --mixed_precision='bf16' \
     --dataset_name='JeanKaddour/minipile' \
     --per_device_train_batch_size=2 \
     --per_device_eval_batch_size=2 \
-    --weight_decay=1.0 \
     --output_dir='./models/gemma-2b-infini-noclm-minipile' \
     --checkpointing_steps=100 \
     --num_train_epochs=1 \

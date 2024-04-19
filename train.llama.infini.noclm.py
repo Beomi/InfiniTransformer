@@ -45,18 +45,19 @@ import transformers
 from transformers import (
     CONFIG_MAPPING,
     MODEL_MAPPING,
-    AutoConfig,
-    AutoModelForCausalLM,
     AutoTokenizer,
     SchedulerType,
     default_data_collator,
     get_scheduler,
-    Qwen2MoeConfig,
+    Adafactor,
 )
 from transformers.utils import check_min_version, send_example_telemetry
 from transformers.utils.versions import require_version
-from infini_gemma import GemmaForCausalLM, GemmaConfig
+from transformers import LlamaConfig
+from infini_llama import LlamaForCausalLM
 from datasets import DatasetDict, interleave_datasets
+
+torch.autograd.set_detect_anomaly(True)
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 check_min_version("4.40.0.dev0")
@@ -398,14 +399,14 @@ def main():
     # In distributed training, the .from_pretrained methods guarantee that only one local process can concurrently
     # download model & vocab.
     if args.config_name:
-        # Not use AutoConfig, to avoid HF Gemma model loading
-        config = GemmaConfig.from_pretrained(
+        # Not use AutoConfig, to avoid HF Llama model loading
+        config = LlamaConfig.from_pretrained(
             args.config_name,
             trust_remote_code=args.trust_remote_code,
         )
     elif args.model_name_or_path:
-        # Not use AutoConfig, to avoid HF Gemma model loading
-        config = GemmaConfig.from_pretrained(
+        # Not use AutoConfig, to avoid HF Llama model loading
+        config = LlamaConfig.from_pretrained(
             args.model_name_or_path,
             trust_remote_code=args.trust_remote_code,
         )
@@ -432,8 +433,8 @@ def main():
         )
 
     if args.model_name_or_path:
-        # Not use AutoModelForCausalLM to avoid HF Gemma model loading
-        model = GemmaForCausalLM.from_pretrained(
+        # Not use AutoModelForCausalLM to avoid HF Llama model loading
+        model = LlamaForCausalLM.from_pretrained(
             args.model_name_or_path,
             from_tf=bool(".ckpt" in args.model_name_or_path),
             config=config,
@@ -444,7 +445,7 @@ def main():
         )
     else:
         logger.info("Training new model from scratch")
-        model = GemmaForCausalLM(
+        model = LlamaForCausalLM(
             config,
             # torch_dtype=torch.bfloat16,
             device_map="auto",
@@ -532,7 +533,7 @@ def main():
     # DataLoaders creation:
     train_dataloader = DataLoader(
         train_dataset,
-        shuffle=True,
+        shuffle=False,  # Remove shuffle
         collate_fn=default_data_collator,
         batch_size=args.per_device_train_batch_size,
     )
@@ -563,9 +564,10 @@ def main():
             "weight_decay": 0.0,
         },
     ]
-    optimizer = torch.optim.AdamW(
+    optimizer = Adafactor(
         optimizer_grouped_parameters,
         lr=args.learning_rate,
+        relative_step=False,
     )
 
     # Scheduler and math around the number of training steps.
@@ -731,7 +733,7 @@ def main():
                     ),
                     dim=1,
                 )
-            memory, norm_term = None, None
+            memory, norm_term = {}, {}
             avg_segment_loss = 0
             for i in range(len(input_ids)):
                 outputs = model(
@@ -744,13 +746,17 @@ def main():
                 memory = outputs.memory
                 norm_term = outputs.norm_term
                 loss = outputs.loss
-                # print("Loss:", loss.item())
+                print(f"Loss @ segment {i}:", loss.item())
+                # print(input_ids[i])
                 # accelerator.backward(loss, retain_graph=True)
                 accelerator.backward(loss)
-                total_loss += loss  # .detach().float()
-                total_segment_loss += loss  # .detach().float()
+                total_loss += loss.detach().float()
+                total_segment_loss += loss.detach().float()
                 # print("Total loss:", total_loss)
                 # print("Total segment loss:", total_segment_loss)
+
+            # Gradient clipping
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             optimizer.step()
             lr_scheduler.step()
             optimizer.zero_grad()
@@ -765,6 +771,7 @@ def main():
                 print(
                     f"Step: {completed_steps}, Loss: {avg_segment_loss.item()}, LR: {lr_scheduler.get_last_lr()[0]}"
                 )
+                print("-" * 10)
                 # Log to wandb by calling `accelerator.log`, `step` is optional
                 accelerator.log(
                     {
