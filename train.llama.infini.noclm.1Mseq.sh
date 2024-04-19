@@ -1,7 +1,7 @@
 # export CUDA_VISIBLE_DEVICES=0
 
 # DEBUG=true 
-accelerate launch --mixed_precision='bf16' \
+accelerate launch --num_processes=1 --mixed_precision='bf16' \
     train.llama.infini.noclm.py \
     --model_name_or_path='meta-llama/Meta-Llama-3-8B' \
     --segment_length=2048 \
