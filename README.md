@@ -1,6 +1,7 @@
 # InfiniTransformer
 
-Unofficial PyTorch/🤗Transformers(+Gemma) implementation of Leave No Context Behind: Efficient Infinite Context Transformers with Infini-attention
+Unofficial PyTorch/🤗Transformers implementation of Leave No Context Behind: Efficient Infinite Context Transformers with Infini-attention,
+with Llama3 and Gemma model supported. (Llama 2 and 1 is also supported)
 
 - Paper Link: https://arxiv.org/abs/2404.07143
 
