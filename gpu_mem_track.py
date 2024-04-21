@@ -6,20 +6,20 @@ import torch
 import numpy as np
 
 dtype_memory_size_dict = {
-    torch.float: 32 / 8,
-    torch.float32: 32 / 8,
-    torch.float16: 16 / 8,
-    torch.half: 16 / 8,
     torch.float64: 64 / 8,
     torch.double: 64 / 8,
-    torch.uint8: 8 / 8,
-    torch.int: 32 / 8,
-    torch.int32: 32 / 8,
-    torch.int8: 8 / 8,
-    torch.int16: 16 / 8,
-    torch.short: 16 / 8,
+    torch.float32: 32 / 8,
+    torch.float: 32 / 8,
+    torch.float16: 16 / 8,
+    torch.half: 16 / 8,
     torch.int64: 64 / 8,
     torch.long: 64 / 8,
+    torch.int32: 32 / 8,
+    torch.int: 32 / 8,
+    torch.int16: 16 / 8,
+    torch.short: 16 / 8,
+    torch.uint8: 8 / 8,
+    torch.int8: 8 / 8,
 }
 # compatibility of torch1.0
 if getattr(torch, "bfloat16", None) is not None:
