@@ -5,7 +5,7 @@ with Llama3 and Gemma model supported. (Llama 2 and 1 is also supported)
 
 - Paper Link: https://arxiv.org/abs/2404.07143
 
-## Two types of Implemenation for Infini-Attention
+## Two types of Implementation for Infini-Attention
 
 **Type I. Infini Attention in Model-wise, Trainer-wise**
 
